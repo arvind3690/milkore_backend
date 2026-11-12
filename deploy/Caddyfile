@@ -1,0 +1,9 @@
+# TLS is automatic (Let's Encrypt). Replace the domain before deploying.
+api.milkore.in {
+	encode gzip
+	# Socket.IO (WebSocket upgrade) and REST share the same upstream.
+	reverse_proxy api:3000
+	header {
+		-Server
+	}
+}
