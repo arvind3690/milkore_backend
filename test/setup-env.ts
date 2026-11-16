@@ -8,3 +8,4 @@ process.env.NODE_ENV = 'test';
 process.env.STORAGE_PROVIDER = 'local';
 process.env.SMS_PROVIDER = 'console';
 process.env.OTP_TEST_ENABLED = 'false';
+delete process.env.OTP_DEV_STATIC_CODE; // e2e reads the real (random) OTP from the console SMS provider

@@ -35,3 +35,7 @@
 - Socket.IO uses the in-memory adapter (single instance) — add the Redis adapter before scaling out (ADR-007).
 - Discovery empty-result rate isn't logged yet (add a counter for the launch metrics).
 - MSG91 provider is implemented against the documented Flow API but untested without an account.
+
+## 2026-11-17 — tsconfig cleanup
+
+- Removed deprecated `baseUrl` from `tsconfig.json` (TypeScript 6 deprecation warning). No imports relied on it; `tsc --noEmit` is clean.

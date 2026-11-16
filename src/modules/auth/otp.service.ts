@@ -28,8 +28,15 @@ export class OtpService {
     return createHmac('sha256', this.config.get('OTP_HMAC_SECRET')).update(`${phone}:${otp}`).digest('hex');
   }
 
-  /** Fixed test numbers (Play Store review). Off unless OTP_TEST_ENABLED=true. */
+  /**
+   * Fixed codes that skip SMS: OTP_DEV_STATIC_CODE (every phone, development with the console
+   * SMS provider only) or the Play Store review numbers (OTP_TEST_ENABLED=true).
+   */
   private testCodeFor(phone: string): string | null {
+    const devCode = this.config.get('OTP_DEV_STATIC_CODE');
+    if (devCode && this.config.get('SMS_PROVIDER') === 'console' && this.config.get('NODE_ENV') !== 'production') {
+      return devCode;
+    }
     if (!this.config.get('OTP_TEST_ENABLED')) return null;
     const code = this.config.get('OTP_TEST_CODE');
     const phones = this.config

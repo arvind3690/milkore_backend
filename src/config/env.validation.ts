@@ -29,6 +29,11 @@ export const envSchema = z.object({
     .string()
     .regex(/^\d{6}$/)
     .optional(),
+  /** Development only: one fixed OTP for every phone (needs SMS_PROVIDER=console; refused in production). */
+  OTP_DEV_STATIC_CODE: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
 
   STORAGE_PROVIDER: z.enum(['local', 's3']).default('local'),
   AWS_REGION: z.string().default('ap-south-1'),
@@ -59,6 +64,9 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   if (env.NODE_ENV === 'production') {
     if (env.SMS_PROVIDER === 'console') {
       throw new Error('SMS_PROVIDER=console is not allowed in production');
+    }
+    if (env.OTP_DEV_STATIC_CODE) {
+      throw new Error('OTP_DEV_STATIC_CODE is not allowed in production');
     }
     if (env.STORAGE_PROVIDER === 's3' && !env.S3_BUCKET) {
       throw new Error('S3_BUCKET is required for s3 storage');
