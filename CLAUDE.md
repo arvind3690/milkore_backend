@@ -8,8 +8,9 @@ Read this file fully before any change in this repo. **This repo also holds the 
 
 - Roles: **CUSTOMER**, **VENDOR** (Flutter app, `../milkore_app`) and **ADMIN** (Next.js dashboard, future `../milkore_admin`, separate auth).
 - **MVP:** OTP login, location search (India Post PIN API), vendor onboarding + admin approval, products and prices, PostGIS nearby discovery, free chat (REST + Socket.IO), free calls (dialer + call log), reports, support, admin APIs.
-- **Not in MVP:** payments, paid chat (₹10) / paid call (₹50), orders, delivery, subscriptions, reviews, **push notifications / Firebase**.
-- **Future-ready hooks (build the hook, not the feature):** every chat/call path goes through `CommunicationPolicyService` + `communication_access` (FREE_MVP today, PAID later); outbound notifications go through a `NotificationSender` interface (no-op today).
+- **Not in MVP:** payments, paid chat (₹10) / paid call (₹50), orders, delivery, subscriptions, reviews.
+- **Push notifications (ADR-022):** `notifications` module — FCM through `PushProvider` (`PUSH_PROVIDER=fcm|console`), device tokens, inbox, preferences, admin campaigns. Feature code only calls `NotificationSender` (never FCM directly), and it must never throw.
+- **Future-ready hooks (build the hook, not the feature):** every chat/call path goes through `CommunicationPolicyService` + `communication_access` (FREE_MVP today, PAID later).
 
 ## Documents (keep them current)
 
@@ -25,10 +26,10 @@ Read this file fully before any change in this repo. **This repo also holds the 
 | `docs/PROGRESS.md` | Progress log, updated after every phase |
 | `../MILKORE_PHASE_PROMPTS.md` | Phase prompts. Run only the phase you're asked to run |
 
-## Current state (2026-11-13)
+## Current state (2026-11-17)
 
-- All MVP modules are implemented and tested: 26 unit + 41 e2e tests pass (`npm test`, `node scripts/test-db.cjs && npm run test:e2e`).
-- Local DB: PostgreSQL 18 with PostGIS 3.7; migrations `d1`, `d2_d3`, `d4` applied; base + dev seeds available.
+- All MVP modules plus push notifications (ADR-022) are implemented and tested: 45 unit + 54 e2e tests pass (`npm test`, `node scripts/test-db.cjs && npm run test:e2e`).
+- Local DB: PostgreSQL 18 with PostGIS 3.7; migrations `d1`, `d2_d3`, `d4`, `d5_notifications` applied; base + dev seeds available.
 - Progress and remaining founder actions: `docs/PROGRESS.md`; deployment: `docs/DEPLOYMENT.md`; launch: `docs/LAUNCH_CHECKLIST.md`.
 
 ## Target architecture
@@ -64,6 +65,7 @@ Each module: `*.module.ts`, `*.controller.ts` (thin), `*.service.ts` (business r
   - Rate limit: `429` plus a `Retry-After` header (seconds).
   - 5xx responses never leak stack traces or SQL.
   - Lists: `data: { items, page, limit, total }`; chat history: `data: { items, nextCursor }`.
+- **Push (ADR-022):** FCM `data` values are all strings: `{ type, category, target, notificationId?, campaignId?, ...targetParams }`. `target` ∈ HOME, NOTIFICATIONS, CHAT (`conversationId`), VENDOR_DASHBOARD, VENDOR_PRODUCTS (`productId`), SUPPORT (`ticketId`), VENDOR_DETAILS (`vendorId`). Android channels: `chat`, `account`, `announcements`. Devices: `POST /me/devices` (200) after login/start/token refresh, `POST /me/devices/unregister`; `POST /auth/logout` accepts `pushToken`. Inbox: `GET /me/notifications`, `POST /me/notifications/:id/read`, `POST /me/notifications/read-all`; preferences: `GET/PATCH /me/notification-preferences`; `GET /me/unread-summary` includes `unreadNotifications`.
 - **Auth rules (they must match the app's envelope logic):**
   - Login endpoints live under **`/auth/login/...`**: `POST /auth/login/otp/request`, `POST /auth/login/otp/verify`. Wrong or expired OTP → `400` (never 401).
   - Expired or invalid access token on a protected route → `401` (the app then refreshes once and retries).

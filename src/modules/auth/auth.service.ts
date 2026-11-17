@@ -70,9 +70,12 @@ export class AuthService {
     return this.tokens.rotate(refreshToken, userAgent);
   }
 
-  async logout(userId: string, refreshToken: string | undefined, ip: string) {
+  async logout(userId: string, refreshToken: string | undefined, ip: string, pushToken?: string) {
     if (refreshToken) await this.tokens.revokeByToken(refreshToken, userId);
     else await this.tokens.revokeAllForUser(userId);
+    // Logged-out devices stop getting this account's pushes. "Log out everywhere" removes them all.
+    if (pushToken) await this.prisma.deviceToken.deleteMany({ where: { userId, token: pushToken } });
+    else if (!refreshToken) await this.prisma.deviceToken.deleteMany({ where: { userId } });
     await this.audit.record({ actorType: 'USER', actorId: userId, action: 'auth.logout', entityType: 'user', entityId: userId, ip });
     return null;
   }
@@ -111,6 +114,9 @@ export class AuthService {
         data: { addressLabel: null, pincode: null, city: null },
       }),
       this.prisma.$executeRaw`UPDATE customer_profiles SET location = NULL WHERE user_id = ${userId}::uuid`,
+      this.prisma.deviceToken.deleteMany({ where: { userId } }),
+      this.prisma.notification.deleteMany({ where: { userId } }),
+      this.prisma.notificationPreference.deleteMany({ where: { userId } }),
     ]);
     await this.tokens.revokeAllForUser(userId);
     await this.audit.record({ actorType: 'USER', actorId: userId, action: 'account.delete', entityType: 'user', entityId: userId, ip });

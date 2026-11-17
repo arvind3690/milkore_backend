@@ -34,10 +34,10 @@ Every response — success **and** error — uses one envelope:
 | POST | `/auth/login/otp/request` | public, 5/min | `{ phone, purpose?: "LOGIN" }` → `{ resendAfterSeconds: 30, expiresInSeconds: 300 }`. 30 s resend cooldown, 5/hour per phone, 20/hour per IP → 429 |
 | POST | `/auth/login/otp/verify` | public | `{ phone, otp, deviceId? }` → tokens + user. Wrong/expired OTP → **400** (never 401) |
 | POST | `/auth/refresh` | public | `{ "refresh_token": "…" }` → **HTTP 200** `{ accessToken, refreshToken, expiresIn }`. Rotates; reuse of an old token revokes the whole session family (401) |
-| POST | `/auth/logout` | user | `{ refresh_token? }` revokes that session family (or all sessions) |
+| POST | `/auth/logout` | user | `{ refresh_token?, pushToken? }` revokes that session family (or all sessions). `pushToken` stops pushes to this device; with no refresh token, every device is removed |
 | GET | `/me` | user | current user |
 | PATCH | `/me` | user | `{ name?, preferredLanguage?: "en"\|"hi" }` |
-| DELETE | `/me` | user | account deletion: anonymises phone/name, hides vendor listing, revokes sessions |
+| DELETE | `/me` | user | account deletion: anonymises phone/name, hides vendor listing, revokes sessions, removes devices and notifications |
 
 ```json
 // POST /auth/login/otp/verify → 200
@@ -127,7 +127,7 @@ Matching rule (PostGIS): APPROVED ∧ user ACTIVE ∧ not deleted ∧ (inside an
 | POST | `/conversations/:id/messages` | `{ clientMessageId, body ≤ 2000 }` — idempotent per `clientMessageId`; 30/min |
 | POST | `/conversations/:id/read` | marks the other side's messages read |
 | POST | `/conversations/:id/block` · `/unblock` | |
-| GET | `/me/unread-summary` | `{ unreadConversations, unreadMessages, vendorStatus, vendorRejectionReason }` (no push in MVP: call on open/resume) |
+| GET | `/me/unread-summary` | `{ unreadConversations, unreadMessages, unreadNotifications, vendorStatus, vendorRejectionReason }` — call on open/resume and when a push arrives |
 | POST | `/calls` | `{ vendorId }` → `{ vendorId, businessName, phone }`; logs the reveal |
 
 Every chat start/send and call passes `CommunicationPolicyService` (free today; the paid-access hook).
@@ -161,6 +161,47 @@ Every chat start/send and call passes `CommunicationPolicyService` (free today; 
 | GET / PATCH | `/admin/support-tickets[/:id]` | any | `{ status?, adminNote? }` |
 | GET | `/admin/audit-logs?entityType=&entityId=&actorId=` | any | |
 | GET / POST | `/admin/admins` · PATCH `/admin/admins/:id/status` | SUPER_ADMIN | |
+| POST | `/admin/notifications/audience-preview` | any | `{ audience }` → `{ recipients, reachable, label }` (`reachable` = has a device and allows announcements) |
+| POST | `/admin/notifications/campaigns` | any (ALL / ROLE: SUPER_ADMIN) | send now → **201** campaign with `status: SENDING`; 10/min; audited as `notification.campaign` |
+| GET | `/admin/notifications/campaigns?page=` · `/admin/notifications/campaigns/:id` | any | history; the detail adds `readCount` |
+
+## Notifications (logged in, ADR-022)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/me/devices` | `{ token, platform: ANDROID\|IOS, deviceId?, appVersion? }` → **200** `data: null`. Idempotent; call after login, on app start and on token refresh. A token registered to another account moves to this one |
+| POST | `/me/devices/unregister` | `{ token }` → 200 (call before logout) |
+| GET | `/me/notifications?page=&limit=&unreadOnly=` | inbox, newest first: `{ items, page, limit, total, unreadCount }` |
+| GET | `/me/notifications/unread-count` | `{ unreadCount }` |
+| POST | `/me/notifications/:id/read` | → the notification (`isRead: true`). Someone else's id → 404 |
+| POST | `/me/notifications/read-all` | `{ updated }` |
+| GET / PATCH | `/me/notification-preferences` | `{ chat, account, announcements }` (booleans, all true by default). Turning a group off stops its pushes; inbox entries are still created |
+
+Inbox item:
+```json
+{ "id": "…", "category": "ACCOUNT", "type": "VENDOR_STATUS", "title": "Your shop is approved 🎉",
+  "body": "Customers near you can now find your shop on Milkore.", "target": "VENDOR_DASHBOARD",
+  "targetParams": {}, "isRead": false, "readAt": null, "createdAt": "…" }
+```
+
+**Push payload (FCM).** A visible `notification { title, body }` in the user's language, plus `data` (all strings):
+`{ type, category, target, notificationId?, campaignId?, ...targetParams }`.
+
+| type | Who receives it | category / Android channel | target (+ params) |
+|---|---|---|---|
+| `CHAT_MESSAGE` | the other side, when not connected to the socket | CHAT / `chat` (not in the inbox) | `CHAT` + `conversationId` |
+| `VENDOR_STATUS` | vendor | ACCOUNT / `account` | `VENDOR_DASHBOARD` |
+| `PRODUCT_MODERATED` | vendor | ACCOUNT / `account` | `VENDOR_PRODUCTS` + `productId` |
+| `SUPPORT_UPDATE` | ticket owner (when the status or reply changes) | ACCOUNT / `account` | `SUPPORT` + `ticketId` |
+| `REPORT_RESOLVED` | reporter (first close only) | ACCOUNT / `account` | `NOTIFICATIONS` + `reportId` |
+| `CAMPAIGN` | the admin's audience | ANNOUNCEMENT / `announcements` | `HOME`, `NOTIFICATIONS`, `VENDOR_DASHBOARD`*, `VENDOR_PRODUCTS`*, `SUPPORT`, `VENDOR_DETAILS` + `vendorId` |
+
+\* Vendor-only targets need a vendor-only audience (ROLE VENDOR, VENDOR_STATUS, or LOCATION with role VENDOR); otherwise 400. Campaigns can't target `CHAT`.
+
+**Campaign body.** `{ titleEn (3–65), bodyEn (3–240), titleHi?, bodyHi? (both or neither), audience, target?, targetParams? { vendorId } }`.
+`audience` is one of `{ type: "ALL" }`, `{ type: "ROLE", role }`, `{ type: "USERS", userIds: [≤1000] }`,
+`{ type: "LOCATION", city?, pincode?, role? }` (customer PIN/city, vendor shop PIN/city, or a served PIN), `{ type: "VENDOR_STATUS", approvalStatus }`.
+Only ACTIVE users are included; no match → 400. Campaign fields: `status SENDING|SENT|FAILED`, `recipientCount` (users), `deliveredCount` / `failedCount` (devices), `noDeviceCount` (users with no device or with announcements off), `errorMessage`, `sentAt`, `createdBy`.
 
 ## Health
 

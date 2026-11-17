@@ -51,6 +51,12 @@ export class LogoutDto {
   @IsString()
   @MaxLength(200)
   refresh_token?: string;
+
+  @ApiPropertyOptional({ description: "This device's FCM token; it stops receiving pushes for this account" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  pushToken?: string;
 }
 
 export class UpdateMeDto {

@@ -236,13 +236,13 @@ export class ChatService {
     return this.conversationDto(updated, p.side);
   }
 
-  /** Called on app open/resume (no push in the MVP). */
+  /** Called on app open/resume and when a push arrives; also carries the notification inbox count. */
   async unreadSummary(userId: string) {
     const vendor = await this.prisma.vendorProfile.findUnique({
       where: { userId },
       select: { id: true, approvalStatus: true, rejectionReason: true, updatedAt: true },
     });
-    const [asCustomer, asVendor] = await Promise.all([
+    const [asCustomer, asVendor, unreadNotifications] = await Promise.all([
       this.prisma.conversation.aggregate({
         where: { customerId: userId, customerUnread: { gt: 0 } },
         _count: true,
@@ -255,10 +255,12 @@ export class ChatService {
             _sum: { vendorUnread: true },
           })
         : Promise.resolve(null),
+      this.prisma.notification.count({ where: { userId, readAt: null } }),
     ]);
     return {
       unreadConversations: asCustomer._count + (asVendor?._count ?? 0),
       unreadMessages: (asCustomer._sum.customerUnread ?? 0) + (asVendor?._sum.vendorUnread ?? 0),
+      unreadNotifications,
       vendorStatus: vendor?.approvalStatus ?? null,
       vendorRejectionReason: vendor?.rejectionReason ?? null,
     };

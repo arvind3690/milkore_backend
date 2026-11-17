@@ -4,7 +4,8 @@ import { AuditService } from '../../common/audit/audit.service';
 import { paginated } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TokenService } from '../auth/token.service';
-import { NotificationSender } from '../chat/communication-policy.service';
+import { NotificationSender } from '../notifications/notification-sender';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ProductsService } from '../vendors/products.service';
 import { VendorsService } from '../vendors/vendors.service';
 
@@ -22,6 +23,7 @@ export class AdminService {
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
     private readonly notifier: NotificationSender,
+    private readonly notificationsSvc: NotificationsService,
   ) {}
 
   async stats() {
@@ -184,7 +186,10 @@ export class AdminService {
       throw new BadRequestException({ message: 'Please give a reason.', errors: { reason: ['Reason is required'] } });
     }
     await this.prisma.user.update({ where: { id: userId }, data: { status } });
-    if (status === 'SUSPENDED') await this.tokens.revokeAllForUser(userId);
+    if (status === 'SUSPENDED') {
+      await this.tokens.revokeAllForUser(userId);
+      await this.notificationsSvc.removeAllDevices(userId); // a suspended account gets no pushes
+    }
     await this.audit.record({
       actorType: 'ADMIN', actorId: adminId, action: `user.${status.toLowerCase()}`, entityType: 'user', entityId: userId, metadata: { reason: reason ?? null }, ip,
     });
@@ -241,6 +246,10 @@ export class AdminService {
     await this.audit.record({
       actorType: 'ADMIN', actorId: adminId, action: remove ? 'product.remove' : 'product.restore', entityType: 'product', entityId: id, metadata: { reason: reason ?? null }, ip,
     });
+    const vendor = await this.prisma.vendorProfile.findUnique({ where: { id: p.vendorId }, select: { userId: true } });
+    if (vendor) {
+      await this.notifier.notifyProductModerated(vendor.userId, { productId: p.id, productName: p.name, removed: remove, reason: p.removedReason });
+    }
     return { id: p.id, moderationStatus: p.moderationStatus, removedReason: p.removedReason };
   }
 
@@ -275,11 +284,16 @@ export class AdminService {
   }
 
   async resolveReport(adminId: string, id: string, status: ReportStatus, note: string | undefined, ip: string) {
+    const before = await this.prisma.report.findUnique({ where: { id }, select: { status: true } });
     const r = await this.prisma.report.update({
       where: { id },
       data: { status, resolutionNote: note?.trim() || null, resolvedByAdminId: status === 'OPEN' ? null : adminId, resolvedAt: status === 'OPEN' ? null : new Date() },
     });
     await this.audit.record({ actorType: 'ADMIN', actorId: adminId, action: `report.${status.toLowerCase()}`, entityType: 'report', entityId: id, ip });
+    // Tell the reporter once, when the report is first closed (not on every edit).
+    if (status !== 'OPEN' && before?.status === 'OPEN') {
+      await this.notifier.notifyReportResolved(r.reporterUserId, { reportId: r.id, status });
+    }
     return r;
   }
 
@@ -294,8 +308,14 @@ export class AdminService {
   }
 
   async updateTicket(adminId: string, id: string, data: { status?: TicketStatus; adminNote?: string }, ip: string) {
+    const before = await this.prisma.supportTicket.findUnique({ where: { id }, select: { status: true, adminNote: true } });
     const t = await this.prisma.supportTicket.update({ where: { id }, data: { ...data, adminNote: data.adminNote?.trim() } });
     await this.audit.record({ actorType: 'ADMIN', actorId: adminId, action: 'ticket.update', entityType: 'ticket', entityId: id, metadata: { status: data.status ?? null }, ip });
+    // Notify only when something the user can see changed: the status or the reply.
+    const noteChanged = !!t.adminNote && t.adminNote !== before?.adminNote;
+    if (before && (t.status !== before.status || noteChanged)) {
+      await this.notifier.notifySupportUpdate(t.userId, { ticketId: t.id, subject: t.subject, status: t.status, note: noteChanged ? t.adminNote : null });
+    }
     return t;
   }
 

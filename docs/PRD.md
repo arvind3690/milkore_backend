@@ -66,10 +66,10 @@ The marketplace connects customers and vendors only. Milkore doesn't sell, deliv
 Everything in section 4. Chat and call are free.
 
 ## 7. Out of scope for the MVP
-Payments and paid chat/call · orders · delivery · subscriptions · reviews and ratings · push notifications (Firebase) · Milkore own-brand products · multi-city operations tooling · iOS release · public website.
+Payments and paid chat/call · orders · delivery · subscriptions · reviews and ratings · Milkore own-brand products · multi-city operations tooling · iOS release · public website.
 
 ## 8. Future roadmap
-1. Push notifications. 2. Reviews and ratings. 3. Paid chat (₹10) / call (₹50) access via Razorpay, using the existing `communication_access` hook. 4. Featured listings and vendor subscriptions. 5. Orders and daily milk subscriptions. 6. Delivery management. 7. Own-brand and partner brand products. 8. Multi-city expansion and iOS.
+1. ~~Push notifications~~ (done, ADR-022). 2. Reviews and ratings. 3. Paid chat (₹10) / call (₹50) access via Razorpay, using the existing `communication_access` hook. 4. Featured listings and vendor subscriptions. 5. Orders and daily milk subscriptions. 6. Delivery management. 7. Own-brand and partner brand products. 8. Multi-city expansion and iOS.
 
 ## 9. Gaps and conflicts found while planning
 | Issue | Resolution |

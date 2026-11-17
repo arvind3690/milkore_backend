@@ -31,7 +31,7 @@ Prices change; confirm before purchase. USD → INR at about ₹85.
 | Admin hosting | same instance ₹0 | Vercel Hobby ₹0 / same instance | Vercel Pro ≈ ₹1,700 |
 | Domain (.in / .com) | ≈ ₹80 (₹900/yr) | ≈ ₹80 | ≈ ₹80 |
 | SMS OTP (₹0.15–0.25 per SMS; DLT registration ≈ ₹5,900 one-time) | 2k OTP ≈ ₹400 | 10k OTP ≈ ₹2,000 | 100k OTP ≈ ₹20,000 |
-| Push | not in MVP ₹0 | ₹0 | FCM free |
+| Push | FCM (ADR-022) ₹0 | ₹0 | FCM free |
 | Chat | Socket.IO on the API ₹0 | ₹0 | + Redis adapter ≈ ₹1,500 |
 | Backups (pg_dump → S3) | ≈ ₹50 | ≈ ₹100 | RDS snapshots ≈ ₹1,000 |
 | Monitoring (Sentry free, UptimeRobot free) | ₹0 | ₹0 | Sentry Team ≈ ₹2,200 |

@@ -50,7 +50,7 @@ export class AuthController {
   @HttpCode(200)
   @ResponseMessage('Logged out')
   logout(@CurrentUser() user: AuthUser, @Body() dto: LogoutDto, @Req() req: Request) {
-    return this.auth.logout(user.id, dto.refresh_token, clientIp(req));
+    return this.auth.logout(user.id, dto.refresh_token, clientIp(req), dto.pushToken);
   }
 }
 

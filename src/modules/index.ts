@@ -5,6 +5,7 @@ import { DiscoveryModule } from './discovery/discovery.module';
 import { HealthModule } from './health/health.module';
 import { LocationsModule } from './locations/locations.module';
 import { MediaModule } from './media/media.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { TrustModule } from './trust/trust.module';
 import { VendorsModule } from './vendors/vendors.module';
 
@@ -16,6 +17,7 @@ export const FEATURE_MODULES = [
   MediaModule,
   VendorsModule,
   DiscoveryModule,
+  NotificationsModule,
   ChatModule,
   TrustModule,
   AdminModule,

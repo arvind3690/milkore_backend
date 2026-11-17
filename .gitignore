@@ -35,3 +35,7 @@ uploads/
 .DS_Store
 Thumbs.db
 dist-seed
+
+# Firebase service account key (secret)
+firebase-service-account.json
+*firebase-adminsdk*.json

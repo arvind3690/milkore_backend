@@ -10,6 +10,7 @@ PostgreSQL 16+/18 with **PostGIS**, **pg_trgm**, **pgcrypto**. Tables are snake_
 | `d1_identity_auth_audit` | extensions; users, otp_requests, refresh_sessions, customer_profiles, admin_users, admin_sessions, audit_logs |
 | `d2_d3_vendors_catalogue` | vendor_profiles, vendor_locations (GIST), vendor_service_areas, vendor_approval_history, media_assets, post_offices (GIN trigram), pincode_lookups, product_categories, units, vendor_products, price_history + CHECK constraints |
 | `d4_chat_calls_access_trust` | conversations, messages, call_logs, communication_access, reports, support_tickets |
+| `d5_notifications` | device_tokens, notifications, notification_preferences, notification_campaigns (ADR-022) |
 
 ## Relationships
 
@@ -28,6 +29,10 @@ erDiagram
   vendor_products ||--o{ price_history : changes
   conversations ||--o{ messages : contains
   admin_users ||--o{ admin_sessions : "logs in"
+  users ||--o{ device_tokens : "installs"
+  users ||--o{ notifications : inbox
+  users ||--o| notification_preferences : "opts out"
+  notification_campaigns ||--o{ notifications : creates
 ```
 
 Conversations, call_logs, communication_access, reports and support_tickets reference users / vendor_profiles by id (no FK) so account deletion can anonymise without cascading chat history away.
@@ -444,3 +449,61 @@ Indexes: index [status, createdAt]; index [targetType, targetId]
 | updatedAt | DateTime |  |
 
 Indexes: index [userId]; index [status, createdAt]
+
+## D5 — push notifications (ADR-022)
+
+### `device_tokens` (DeviceToken)
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String | PK, default uuid() |
+| userId | String | FK users, cascade |
+| token | String | FCM registration token, **unique** (varchar 512). Moves to whoever registers it last |
+| platform | DevicePlatform | ANDROID \| IOS |
+| deviceId | String | optional, per install; a new token for the same install replaces the old one |
+| appVersion | String | optional |
+| lastSeenAt | DateTime | refreshed on every registration |
+| createdAt / updatedAt | DateTime | |
+
+Indexes: unique [token]; index [userId]. Rows are removed on logout (`pushToken`), suspension, account deletion and when FCM reports the token dead.
+
+### `notifications` (Notification) — the in-app inbox
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String | PK; also sent in the push as `notificationId` |
+| userId | String | FK users, cascade |
+| category | NotificationCategory | CHAT \| ACCOUNT \| ANNOUNCEMENT (chat messages are never stored here) |
+| type | NotificationType | CHAT_MESSAGE, VENDOR_STATUS, PRODUCT_MODERATED, SUPPORT_UPDATE, REPORT_RESOLVED, CAMPAIGN |
+| title / body | String | rendered in the user's language at send time |
+| target | NotificationTarget | default NOTIFICATIONS |
+| targetParams | Json | optional, string values only |
+| campaignId | String | optional FK notification_campaigns, set null |
+| readAt | DateTime | optional |
+| createdAt | DateTime | |
+
+Indexes: [userId, createdAt desc]; [userId, readAt]; [campaignId].
+
+### `notification_preferences` (NotificationPreference)
+
+One optional row per user (unique userId); no row means everything is on. `chat`, `account`, `announcements` booleans (default true). Turning one off stops pushes only.
+
+### `notification_campaigns` (NotificationCampaign)
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String | PK |
+| createdByAdminId | String | admin_users.id (not an FK, like other admin references) |
+| titleEn / bodyEn | String | required |
+| titleHi / bodyHi | String | optional, used for users whose language is `hi` |
+| audience | Json | the validated targeting rule |
+| target / targetParams | NotificationTarget / Json | |
+| status | CampaignStatus | SENDING → SENT \| FAILED |
+| recipientCount | Int | users matched |
+| deliveredCount / failedCount | Int | devices |
+| noDeviceCount | Int | users with no device or announcements off |
+| errorMessage | String | optional |
+| sentAt | DateTime | optional |
+| createdAt / updatedAt | DateTime | |
+
+Indexes: [createdAt].

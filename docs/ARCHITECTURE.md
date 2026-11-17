@@ -45,7 +45,7 @@ flowchart TB
   vproducts[vendor-products] --> catalog & media
   discovery[discovery]
   policy[communication-policy]
-  chat[chat REST + gateway] --> policy & notif[NotificationSender no-op]
+  chat[chat REST + gateway] --> policy & notif[notifications: NotificationSender → FCM + inbox]
   calls[calls] --> policy
   reports[reports]
   support[support]
@@ -96,7 +96,7 @@ sequenceDiagram
   C->>API: POST /conversations/:id/messages {clientMessageId, body}
   API->>API: store (idempotent), bump unread
   API-->>V: socket "message:new" (if connected)
-  API->>API: NotificationSender.notify() (no-op in MVP)
+  API-->>V: FCM push via NotificationSender (if not connected; respects preferences)
   V->>API: GET /me/unread-summary (on open/resume)
   C->>API: POST /calls {vendorId}
   API->>API: policy(CALL) + call_logs

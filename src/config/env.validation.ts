@@ -46,6 +46,13 @@ export const envSchema = z.object({
   NOMINATIM_URL: z.string().url().default('https://nominatim.openstreetmap.org'),
   GEOCODER_USER_AGENT: z.string().default('Milkore/0.1'),
 
+  /** Push notifications: "console" only logs (development/tests); "fcm" sends through Firebase Cloud Messaging. */
+  PUSH_PROVIDER: z.enum(['console', 'fcm']).default('console'),
+  /** Path to the Firebase service-account JSON (never committed). */
+  FIREBASE_SERVICE_ACCOUNT_PATH: z.string().default('./firebase-service-account.json'),
+  /** Alternative for containers/CI: the same JSON, base64-encoded. Wins over the path when set. */
+  FIREBASE_SERVICE_ACCOUNT_BASE64: z.string().optional(),
+
   SEED_ADMIN_EMAIL: z.string().email().optional(),
   SEED_ADMIN_PASSWORD: z.string().min(10).optional(),
 });
@@ -67,6 +74,9 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     }
     if (env.OTP_DEV_STATIC_CODE) {
       throw new Error('OTP_DEV_STATIC_CODE is not allowed in production');
+    }
+    if (env.PUSH_PROVIDER === 'console') {
+      throw new Error('PUSH_PROVIDER=console is not allowed in production');
     }
     if (env.STORAGE_PROVIDER === 's3' && !env.S3_BUCKET) {
       throw new Error('S3_BUCKET is required for s3 storage');

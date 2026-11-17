@@ -31,7 +31,9 @@ sudo mkdir -p /opt/milkore/deploy && sudo chown ubuntu /opt/milkore && cd /opt/m
 Create `/opt/milkore/.env.production` (chmod 600) from `.env.example` with **production values**:
 `NODE_ENV=production`, fresh random secrets, `SMS_PROVIDER=msg91` + keys, `STORAGE_PROVIDER=s3` + bucket/keys,
 `MEDIA_PUBLIC_BASE_URL`, `CORS_ORIGINS=https://admin.milkore.in`, `API_PUBLIC_URL=https://api.milkore.in`,
-`GEOCODER_USER_AGENT=Milkore/1.0 (+support@milkore.in)`, `SEED_ADMIN_EMAIL/PASSWORD`.
+`GEOCODER_USER_AGENT=Milkore/1.0 (+support@milkore.in)`, `SEED_ADMIN_EMAIL/PASSWORD`,
+`PUSH_PROVIDER=fcm` plus the Firebase service-account key: either `FIREBASE_SERVICE_ACCOUNT_BASE64=$(base64 -w0 key.json)`
+or mount the file read-only and set `FIREBASE_SERVICE_ACCOUNT_PATH`. Never bake the key into the image or commit it.
 Create `/opt/milkore/.env` with `POSTGRES_PASSWORD=<random>` (compose variable).
 
 Edit `deploy/Caddyfile` to your domain.

@@ -10,6 +10,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { Public, ResponseMessage } from '../../common/decorators';
 import { AuthModule } from '../auth/auth.module';
 import { ChatModule } from '../chat/chat.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { VendorsModule } from '../vendors/vendors.module';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminService } from './admin.service';
@@ -304,7 +305,7 @@ export class AdminController {
 }
 
 @Module({
-  imports: [AuthModule, VendorsModule, ChatModule],
+  imports: [AuthModule, VendorsModule, ChatModule, NotificationsModule],
   controllers: [AdminAuthController, AdminController],
   providers: [AdminService, AdminAuthService],
 })

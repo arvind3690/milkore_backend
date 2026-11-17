@@ -9,7 +9,8 @@ import { ResponseMessage } from '../../common/decorators';
 import { MediaModule } from '../media/media.module';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
-import { CommunicationPolicyService, NoopNotificationSender, NotificationSender } from './communication-policy.service';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { CommunicationPolicyService } from './communication-policy.service';
 
 class StartConversationDto {
   @ApiProperty() @IsUUID() vendorId: string;
@@ -102,14 +103,10 @@ export class ChatController {
 }
 
 @Module({
-  imports: [MediaModule],
+  imports: [MediaModule, NotificationsModule],
   controllers: [ChatController],
-  providers: [
-    ChatService,
-    ChatGateway,
-    CommunicationPolicyService,
-    { provide: NotificationSender, useClass: NoopNotificationSender },
-  ],
-  exports: [ChatService, ChatGateway, NotificationSender],
+  providers: [ChatService, ChatGateway, CommunicationPolicyService],
+  // Re-exports NotificationsModule so importers (AdminModule) keep getting NotificationSender.
+  exports: [ChatService, ChatGateway, NotificationsModule],
 })
 export class ChatModule {}

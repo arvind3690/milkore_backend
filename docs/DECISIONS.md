@@ -7,7 +7,7 @@ Format: Context → Decision → Consequences. Status: Proposed | Accepted | Sup
 - Decision: one repo per component; the admin dashboard gets its own repo in W1. Product-wide docs live in milkore_backend/docs.
 - Consequences: the API contract is duplicated in both CLAUDE.md files and must change in both together.
 
-## ADR-002 No Firebase / push notifications in the MVP — Accepted (P0.1)
+## ADR-002 No Firebase / push notifications in the MVP — Superseded by ADR-022
 - Decision: remove Firebase from the app (F1). Unread state is fetched on app open/resume and live over Socket.IO while the app is open. The backend keeps a no-op NotificationSender.
 - Consequences: users don't get alerts while the app is closed. Push can be added later without changing the chat module.
 
@@ -76,3 +76,9 @@ Local storage returns `/api/v1/media/files/...`; clients resolve against their A
 
 ## ADR-021 Admin tokens only in httpOnly cookies — Accepted (W1)
 The dashboard's route handlers log in, keep access/refresh tokens in `httpOnly; SameSite=Strict` cookies and proxy `/admin/*` server-side. Browser JavaScript never sees a token.
+
+## ADR-022 Push notifications through FCM, with an inbox and admin campaigns — Accepted (N1, 2026-11-17)
+- Context: users miss chat messages and shop decisions while the app is closed (ADR-002 accepted that for the MVP). Firebase is now configured (project `milkore-2345`).
+- Decision: a `notifications` module. `PushProvider` (`fcm` = firebase-admin HTTP v1, `console` = dev/tests) sits behind the existing `NotificationSender` hook, so feature code never talks to FCM. Device tokens are stored per install (`device_tokens`). A token moves to whoever logs in on that device, is removed on logout, suspension and deletion, and is pruned when FCM reports it dead. Every non-chat notification is also an inbox row (`notifications`); chat keeps its own unread counts. Per-user opt-outs (chat / account / announcements) stop the push, never the inbox entry. Copy is rendered server-side in the user's language (en/hi). Admin "send now" campaigns can target everyone, one role, selected users, a city/PIN or a vendor approval status; everyone/whole-role broadcasts need SUPER_ADMIN. The FCM `data` payload carries `target` + params and the app maps that to a screen (never a raw route).
+- Campaigns run in-process in batches of 500 (no queue, per CLAUDE.md). If the server restarts mid-send, the campaign stays SENDING; on startup, campaigns stuck for more than 10 minutes are marked FAILED. Move to a queue when campaigns outgrow one process.
+- Consequences: new dependency `firebase-admin`. Production must set `PUSH_PROVIDER=fcm` and provide the service-account key (file path or base64 env). iOS also needs an APNs key in the Firebase console.

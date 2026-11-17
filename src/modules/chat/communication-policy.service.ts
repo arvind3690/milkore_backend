@@ -37,14 +37,5 @@ export class CommunicationPolicyService {
   }
 }
 
-/** Out-of-app delivery (push). No-op in the MVP (ADR-002); swap the provider to add FCM later. */
-export abstract class NotificationSender {
-  abstract notifyNewMessage(recipientUserId: string, data: { conversationId: string; preview: string }): Promise<void>;
-  abstract notifyVendorStatus(recipientUserId: string, data: { status: string; reason?: string | null }): Promise<void>;
-}
-
-@Injectable()
-export class NoopNotificationSender extends NotificationSender {
-  async notifyNewMessage(): Promise<void> {}
-  async notifyVendorStatus(): Promise<void> {}
-}
+/** Out-of-app delivery (push) now lives in the notifications module (ADR-022). Re-exported for existing imports. */
+export { NoopNotificationSender, NotificationSender } from '../notifications/notification-sender';

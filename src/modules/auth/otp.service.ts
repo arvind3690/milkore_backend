@@ -34,7 +34,8 @@ export class OtpService {
    */
   private testCodeFor(phone: string): string | null {
     const devCode = this.config.get('OTP_DEV_STATIC_CODE');
-    if (devCode && this.config.get('SMS_PROVIDER') === 'console' && this.config.get('NODE_ENV') !== 'production') {
+    // Development only (not test/staging): ConfigModule re-reads .env, so tests can't unset it via process.env.
+    if (devCode && this.config.get('SMS_PROVIDER') === 'console' && this.config.get('NODE_ENV') === 'development') {
       return devCode;
     }
     if (!this.config.get('OTP_TEST_ENABLED')) return null;

@@ -63,10 +63,13 @@ model User {
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
 
-  sessions        RefreshSession[]
-  customerProfile CustomerProfile?
-  vendorProfile   VendorProfile?
-  mediaAssets     MediaAsset[]
+  sessions               RefreshSession[]
+  customerProfile        CustomerProfile?
+  vendorProfile          VendorProfile?
+  mediaAssets            MediaAsset[]
+  deviceTokens           DeviceToken[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
 
   @@index([role, status])
   @@map("users")
@@ -584,4 +587,127 @@ model SupportTicket {
   @@index([userId])
   @@index([status, createdAt])
   @@map("support_tickets")
+}
+
+// ───────────────────────────── D5: push notifications (ADR-022) ─────────────────────────────
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+/// What a notification is about. Also the user-facing preference group.
+enum NotificationCategory {
+  CHAT
+  ACCOUNT
+  ANNOUNCEMENT
+}
+
+enum NotificationType {
+  CHAT_MESSAGE
+  VENDOR_STATUS
+  PRODUCT_MODERATED
+  SUPPORT_UPDATE
+  REPORT_RESOLVED
+  CAMPAIGN
+}
+
+/// Screen the app opens when the notification is tapped.
+enum NotificationTarget {
+  HOME
+  NOTIFICATIONS
+  CHAT
+  VENDOR_DASHBOARD
+  VENDOR_PRODUCTS
+  SUPPORT
+  VENDOR_DETAILS
+}
+
+enum CampaignStatus {
+  SENDING
+  SENT
+  FAILED
+}
+
+/// One FCM registration token per app install. A token moves to whoever logs in on that device.
+model DeviceToken {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  token      String         @unique @db.VarChar(512)
+  platform   DevicePlatform
+  deviceId   String?        @map("device_id") @db.VarChar(128)
+  appVersion String?        @map("app_version") @db.VarChar(32)
+  lastSeenAt DateTime       @default(now()) @map("last_seen_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+/// In-app inbox entry (every push except chat messages, which have their own unread counts).
+model Notification {
+  id           String               @id @default(uuid()) @db.Uuid
+  userId       String               @map("user_id") @db.Uuid
+  category     NotificationCategory
+  type         NotificationType
+  title        String               @db.VarChar(120)
+  body         String               @db.VarChar(500)
+  target       NotificationTarget   @default(NOTIFICATIONS)
+  /// String values only (they travel in the FCM data payload), e.g. { "conversationId": "…" }.
+  targetParams Json?                @map("target_params")
+  campaignId   String?              @map("campaign_id") @db.Uuid
+  readAt       DateTime?            @map("read_at")
+  createdAt    DateTime             @default(now()) @map("created_at")
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt])
+  @@index([campaignId])
+  @@map("notifications")
+}
+
+/// Per-user opt-outs. No row = everything on.
+model NotificationPreference {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  chat          Boolean  @default(true)
+  account       Boolean  @default(true)
+  announcements Boolean  @default(true)
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+/// An admin broadcast. `audience` is the validated targeting rule, kept for the history view.
+model NotificationCampaign {
+  id               String             @id @default(uuid()) @db.Uuid
+  createdByAdminId String             @map("created_by_admin_id") @db.Uuid
+  titleEn          String             @map("title_en") @db.VarChar(120)
+  bodyEn           String             @map("body_en") @db.VarChar(500)
+  titleHi          String?            @map("title_hi") @db.VarChar(120)
+  bodyHi           String?            @map("body_hi") @db.VarChar(500)
+  audience         Json
+  target           NotificationTarget @default(NOTIFICATIONS)
+  targetParams     Json?              @map("target_params")
+  status           CampaignStatus     @default(SENDING)
+  recipientCount   Int                @default(0) @map("recipient_count")
+  deliveredCount   Int                @default(0) @map("delivered_count")
+  failedCount      Int                @default(0) @map("failed_count")
+  noDeviceCount    Int                @default(0) @map("no_device_count")
+  errorMessage     String?            @map("error_message") @db.VarChar(300)
+  sentAt           DateTime?          @map("sent_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  notifications Notification[]
+
+  @@index([createdAt])
+  @@map("notification_campaigns")
 }
