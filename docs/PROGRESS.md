@@ -50,3 +50,9 @@
 - New `notifications` module, migration `d5_notifications` (4 tables), env `PUSH_PROVIDER`, `FIREBASE_SERVICE_ACCOUNT_PATH|BASE64`. Details: ADR-022, API_DOCUMENTATION.md "Notifications".
 - Pushes: chat message (offline recipient), vendor status, product removed/restored, support reply/status, report closed, admin campaigns.
 - Fixes found while testing: `OTP_DEV_STATIC_CODE` now applies only in `NODE_ENV=development` (it leaked into e2e because ConfigModule re-reads .env); e2e runs use a per-run client IP so OTP per-IP limits from earlier runs don't fail the suite; preference booleans reject strings instead of coercing "nope" to true.
+
+
+## 2026-11-18 - Secrets untracked
+
+- Removed committed secret `.env`, `firebase-service-account.json` from git tracking (kept on disk; already in .gitignore): `.env`, `firebase-service-account.json`. They remain in earlier commits, so rotate those keys.
+
